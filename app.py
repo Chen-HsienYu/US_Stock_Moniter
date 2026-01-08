@@ -3,10 +3,11 @@ import yfinance as yf
 import pandas as pd
 import pandas_ta as ta
 import time
+import requests  # 必須要有這個
 from datetime import datetime
 
 # ==========================================
-# 1. 全局配置與 CSS 美化
+# 1. 全局配置
 # ==========================================
 st.set_page_config(page_title="Mark 智能戰情室", layout="wide")
 
@@ -20,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. Session State (預設板塊與持股)
+# 2. Session State
 # ==========================================
 if 'sector_data' not in st.session_state:
     st.session_state.sector_data = {
@@ -48,11 +49,10 @@ def add_ticker():
         st.session_state.new_ticker_input = ""
 
 # ==========================================
-# 3. 側邊欄：控制中心
+# 3. 側邊欄
 # ==========================================
 with st.sidebar:
     st.header("控制中心")
-    
     st.subheader("系統狀態")
     auto_refresh = st.toggle("啟動自動刷新", value=True)
     manual_refresh = st.button("🔄 立即手動刷新", type="primary")
@@ -60,13 +60,11 @@ with st.sidebar:
         refresh_rate = st.slider("秒數", 10, 300, 15)
     
     st.divider()
-
     st.subheader("新增股票")
     st.selectbox("選擇目標板塊", options=st.session_state.sector_data.keys(), key="target_sector_select")
     st.text_input("輸入代碼按 Enter (如: AMD)", key="new_ticker_input", on_change=add_ticker)
     
     st.divider()
-
     st.subheader("管理板塊成份股")
     manage_sector = st.selectbox("選擇要管理的板塊", options=st.session_state.sector_data.keys())
     current_list = st.session_state.sector_data[manage_sector]
@@ -77,7 +75,6 @@ with st.sidebar:
         label_visibility="collapsed"
     )
     st.session_state.sector_data[manage_sector] = updated_list
-    
     st.caption("Data Source: Yahoo Finance")
 
 # ==========================================
@@ -129,77 +126,90 @@ def calculate_strategy(df):
     return status
 
 # ==========================================
-# 5. 核心引擎：批量抓取 + 自動重試 (Auto-Retry)
+# 5. 核心引擎：雲端專用優化版 (User-Agent + Chunking)
 # ==========================================
-@st.cache_data(ttl=5) # 5秒快取，避免短時間重複請求
+@st.cache_data(ttl=5)
 def fetch_all_raw_data(all_tickers):
-    """
-    一次性抓取所有板塊的所有股票，並包含失敗重試機制
-    """
     if not all_tickers:
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
-    # --- 內部函數：具備重試邏輯的下載器 ---
-    def download_with_retry(period, interval, retries=3):
-        for i in range(retries):
-            try:
-                # auto_adjust=True 修復除權息價格斷層
-                df = yf.download(
-                    all_tickers, 
-                    period=period, 
-                    interval=interval, 
-                    group_by='ticker', 
-                    threads=True, 
-                    progress=False,
-                    auto_adjust=True
-                )
-                # 簡單檢查：如果數據不是空的，就回傳
-                if not df.empty:
-                    return df
-                # 如果是空的，休息一下再試
-                time.sleep(1)
-            except Exception:
-                time.sleep(1)
-        return pd.DataFrame() # 最終失敗回傳空表
+    # 建立偽裝 Session (關鍵！騙過 Yahoo 認為我們是瀏覽器)
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
 
-    # 開始並行下載 (每個請求都有 3 次復活機會)
-    d5 = download_with_retry("1mo", "5m")
-    d15 = download_with_retry("1mo", "15m")
-    d1h = download_with_retry("6mo", "1h")
-    d1d = download_with_retry("2y", "1d")
+    # 智能分批下載 (每次只抓 15 檔，太大量在雲端容易 Timeout 或被擋)
+    def chunked_download(tickers, period, interval, retries=3):
+        chunk_size = 15 
+        all_dfs = []
+        
+        # 將股票清單切分成小塊
+        for i in range(0, len(tickers), chunk_size):
+            chunk = tickers[i:i + chunk_size]
+            
+            # 重試機制
+            for r in range(retries):
+                try:
+                    df = yf.download(
+                        chunk, 
+                        period=period, 
+                        interval=interval, 
+                        group_by='ticker', 
+                        threads=True, 
+                        progress=False,
+                        auto_adjust=True,
+                        session=session # 使用偽裝身份
+                    )
+                    if not df.empty:
+                        all_dfs.append(df)
+                        break # 成功就跳出重試
+                    time.sleep(1) # 失敗等一下
+                except Exception:
+                    time.sleep(1)
+            
+            # 每抓完一批，休息 0.5 秒，避免觸發頻率限制
+            time.sleep(0.5)
+
+        # 合併所有數據
+        if all_dfs:
+            try:
+                return pd.concat(all_dfs, axis=1)
+            except:
+                return pd.DataFrame()
+        return pd.DataFrame()
+
+    # 開始分批下載
+    d5 = chunked_download(all_tickers, "1mo", "5m")
+    d15 = chunked_download(all_tickers, "1mo", "15m")
+    d1h = chunked_download(all_tickers, "6mo", "1h")
+    d1d = chunked_download(all_tickers, "2y", "1d")
 
     return d5, d15, d1h, d1d
 
 def process_sector_data(sector_tickers, d5, d15, d1h, d1d):
-    """
-    從總數據庫中切分出該板塊的數據並計算策略
-    """
     results = []
     
-    # 檢查是否為單一股票 (yfinance 格式差異處理)
-    is_multi_index = isinstance(d5.columns, pd.MultiIndex)
-
     for ticker in sector_tickers:
         row = {"商品": ticker, "現價": "-", "10m":"-", "15m":"-", "30m":"-", "1h":"-", "2h":"-", "3h":"-", "4h":"-", "1d":"-"}
-        
         try:
-            # 輔助函數：從大表中提取單一股票
             def get_df(source_df):
                 if source_df.empty: return pd.DataFrame()
-                if is_multi_index:
+                # 處理 MultiIndex
+                if isinstance(source_df.columns, pd.MultiIndex):
                     if ticker in source_df.columns.levels[0]:
                         return source_df[ticker].dropna()
-                    else:
-                        return pd.DataFrame()
-                else:
-                    return source_df.dropna()
+                # 處理 Single Index (極少見，但以防萬一)
+                elif source_df.columns.nlevels == 1: 
+                     # yfinance 單檔下載時沒有 ticker level，但我們用 chunked 下載通常不會發生
+                     pass 
+                return pd.DataFrame()
 
             df_5m = get_df(d5)
             df_15m = get_df(d15)
             df_1h = get_df(d1h)
             df_1d = get_df(d1d)
 
-            # 計算策略
             if not df_5m.empty:
                 row["現價"] = f"{df_5m['Close'].iloc[-1]:.2f}"
                 df_10m = df_5m.resample("10T").agg({'Open':'first', 'High':'max', 'Low':'min', 'Close':'last', 'Volume':'sum'}).dropna()
@@ -246,22 +256,20 @@ def color_map(val):
 if auto_refresh or manual_refresh:
     with main_placeholder.container():
         
-        # 1. 收集所有板塊的股票代碼
         all_unique_tickers = list(set([t for tickers in st.session_state.sector_data.values() for t in tickers]))
         
-        # 2. 一次性下載 (顯示在 Status)
         raw_data_5m, raw_data_15m, raw_data_1h, raw_data_1d = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         
-        with st.status(f"正在掃描 {len(all_unique_tickers)} 檔股票 (包含自動重試)...", expanded=True) as status:
+        # 狀態欄顯示
+        with st.status(f"正在雲端掃描 {len(all_unique_tickers)} 檔股票...", expanded=True) as status:
             if all_unique_tickers:
                 raw_data_5m, raw_data_15m, raw_data_1h, raw_data_1d = fetch_all_raw_data(all_unique_tickers)
-            status.update(label="全市場掃描完成", state="complete", expanded=False)
+            status.update(label="雲端數據下載完成", state="complete", expanded=False)
         
-        # 3. 運算與渲染
+        # 渲染表格
         for sector_name, tickers in st.session_state.sector_data.items():
             if not tickers: continue
             
-            # 從大數據庫中切分並計算
             df_res = process_sector_data(tickers, raw_data_5m, raw_data_15m, raw_data_1h, raw_data_1d)
             
             st.subheader(f"{sector_name}")
@@ -277,7 +285,7 @@ if auto_refresh or manual_refresh:
                     }
                 )
             else:
-                st.warning(f"該板塊暫無數據")
+                st.warning(f"該板塊暫無數據 (Yahoo API 連線逾時)")
 
         st.caption(f"最後更新: {datetime.now().strftime('%H:%M:%S')}")
 
