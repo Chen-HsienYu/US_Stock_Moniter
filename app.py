@@ -24,16 +24,25 @@ st.markdown("""
 # ==========================================
 if 'sector_data' not in st.session_state:
     st.session_state.sector_data = {
-        "美股巨頭": ["NVDA", "TSLA", "GOOGL", "MSFT", "AMZN", "META", "AAPL", "ORCL", "PLTR"],
-        "晶片半導體": ["NVDA", "INTC", "SMCI", "NVTS", "AMD", "TSM", "AVGO", "QCOM"],
-        "量子運算": ["RGTI", "QUBT", "IONQ", "QBTS", "LAES"],
-        "機器人": ["TSLA", "PATH", "PLTR", "SERV"],
-        "核能與能源": ["OKLO", "SMR", "CRML", "EOSE", "LAC", "MP", "NB", "UAMY", "USAR", "UUUU"],
-        "加密貨幣": ["COIN", "MSTR", "MARA", "HUT", "CLSK", "APLD", "BITF", "BMNR", "CIFR", "IREN", "RIOT", "SBET"],
-        "太空股": ["ASTS", "RKLB", "DXYZ", "FJET", "LUNR", "RDW", "SIDU"],
-        "無人機股": ["ONDS", "RCAT", "UMAC"],
-        "AI應用": ["SOUN", "PLTR"],
-        "現有倉位": ["APLD", "CLSK"]
+        "現有倉位": ["APLD", "CLSK"],
+        "明星科技股": ["TSLA", "NVDA", "AAPL", "AMZN", "META", "NFLX", "ORCL", "PLTR", "MU", "AMD", "AVGO", "TSM", "QCOM", "ADBE", "DIS"],
+        "英偉達持倉概念": ["NVDA", "APLD", "CRWV", "NBIS", "ARM", "WRD", "RXRX"],
+        "核電": ["SMR", "OKLO", "UUUU", "NEE", "VST", "UEC", "NXE", "DJT", "LEU"],
+        "量子計算": ["QBTS", "RGTI", "IONQ", "QUBT", "LAES"],
+        "AI應用軟件": ["PLTR", "SOUN", "PATH", "TTD", "PINS", "ZETA", "TEM", "SHOP", "DOCU", "FIG", "RDDT", "SNOW", "MDB"],
+        "特朗普概念": ["TSLA", "MARA", "DJT", "MSTR", "XOM", "CLSK", "RIOT", "COIN", "RUM", "UNH"],
+        "智能駕駛": ["TSLA", "UBER"],
+        "AI晶片": ["INTC", "NVDA", "TSM"],
+        "加密貨幣": ["ASST", "SOFI", "BMNR", "BTBT", "BITF", "MARA", "MSTR", "IREN", "CLSK", "HOOD", "HIVE", "RIOT", "WULF", "CIFR", "GME", "COIN", "CRCL", "SBET", "GLXY", "HUT", "BTDR", "DJT"],
+        "機器人概念": ["TSLA", "MBLY", "PATH", "RR", "SERV", "PDYN"],
+        "無人機概念": ["ONDS", "ACHR", "JOBY", "RCAT", "KTOS", "UMAC", "AVAV"],
+        "人工智慧": ["NVDA", "INTC", "SMCI", "NVTS", "AMD", "TSM", "AVGO", "QCOM"],
+        "半導體概念": ["INTC", "NVDA", "MU", "AMD", "AVGO", "LRCX", "TSM", "AMAT", "SMCI", "NVTS"],
+        "太空概念": ["RKLB", "ASTS", "SIDU", "RDW", "PL", "LUNR", "SATS", "VSAT", "DXYZ", "FJET"],
+        "稀土": ["CRML", "UAMY", "UUUU", "MP", "USAR", "AREC", "NB", "EOSE"],
+        "鋰礦電池": ["LAC", "QS", "LAR", "ENVX", "SGML", "ALAB"],
+        "存儲概念": ["MU", "SNDK", "WDC", "STX"],
+        "自定義清單": ["APLD", "CLSK"]
     }
 
 def add_ticker():
