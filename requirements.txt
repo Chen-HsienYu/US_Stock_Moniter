@@ -1,4 +1,11 @@
+flask
+flask-socketio
+pandas
+numpy<2.0
+requests
+gunicorn
+eventlet
+pytz
 streamlit
 yfinance
-pandas
 pandas-ta

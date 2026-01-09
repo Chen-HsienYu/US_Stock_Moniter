@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mark 美股智能戰情室</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            color: #ffffff;
+            margin-bottom: 10px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #5b21b6);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #888;
+        }
+        
+        .auto-refresh input {
+            width: 60px;
+            padding: 8px;
+            border: 1px solid #333;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            text-align: center;
+        }
+        
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .status.loading {
+            color: #fbbf24;
+        }
+        
+        .status.success {
+            color: #34d399;
+        }
+        
+        .status.error {
+            color: #f87171;
+        }
+        
+        .sector {
+            margin-bottom: 30px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .sector-title {
+            padding: 15px 20px;
+            background: rgba(255,255,255,0.03);
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .sector-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(180deg, #7c3aed, #5b21b6);
+            border-radius: 2px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        
+        th {
+            background: rgba(0,0,0,0.3);
+            font-weight: 500;
+            color: #888;
+            font-size: 0.85rem;
+        }
+        
+        th:first-child, td:first-child {
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+        
+        .ticker {
+            font-weight: 700;
+            color: #fff;
+        }
+        
+        .price {
+            color: #00d4ff;
+            font-weight: 600;
+        }
+        
+        /* 信號顏色（只保留 4 個核心信號）*/
+        .signal {
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .signal-強力買進 {
+            background: linear-gradient(135deg, #2962FF, #1565C0);
+            color: white;
+            box-shadow: 0 2px 8px rgba(41, 98, 255, 0.4);
+        }
+        
+        .signal-買進40 {
+            background: linear-gradient(135deg, #29B6F6, #0288D1);
+            color: white;
+        }
+        
+        .signal-狙擊做空 {
+            background: linear-gradient(135deg, #D50000, #B71C1C);
+            color: white;
+            box-shadow: 0 2px 8px rgba(213, 0, 0, 0.4);
+        }
+        
+        .signal-賣出40 {
+            background: linear-gradient(135deg, #FF5252, #D32F2F);
+            color: white;
+        }
+        
+        .signal-none {
+            color: #555;
+        }
+        
+        .timestamp {
+            text-align: center;
+            color: #666;
+            margin-top: 20px;
+            font-size: 0.85rem;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #7c3aed;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .api-input {
+                width: 100%;
+            }
+            
+            table {
+                font-size: 0.8rem;
+            }
+            
+            th, td {
+                padding: 8px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Mark 美股智能戰情室</h1>
+    </div>
+    
+    <div class="controls">
+        <button id="scanBtn" class="btn btn-primary" onclick="startScan()">
+            🔄 開始掃描
+        </button>
+        <div class="auto-refresh">
+            <input type="checkbox" id="autoRefresh">
+            <label for="autoRefresh">自動刷新</label>
+            <input type="number" id="refreshInterval" value="30" min="10" max="300">
+            <span>秒</span>
+        </div>
+    </div>
+    
+    <div id="status" class="status"></div>
+    
+    <div id="results"></div>
+    
+    <div id="timestamp" class="timestamp"></div>
+
+    <script>
+        let autoRefreshTimer = null;
+        
+        // 內建 API Key
+        const API_KEY = 'v2ohA7EJNTDxa4JMiDVjRrW35g7rwGVb';
+        
+        function getSignalClass(signal) {
+            if (!signal || signal === '-') return 'signal-none';
+            // 處理百分比符號
+            const cleanSignal = signal.replace('%', '');
+            return 'signal-' + cleanSignal;
+        }
+        
+        function renderResults(data) {
+            const resultsDiv = document.getElementById('results');
+            let html = '';
+            
+            // 按照後端返回的順序遍歷（已經是有序數組）
+            for (const sector of data.sectors) {
+                const sectorName = sector.name;
+                const stocks = sector.stocks;
+                
+                html += `
+                    <div class="sector">
+                        <div class="sector-title">${sectorName}</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>商品</th>
+                                    <th>現價</th>
+                                    <th>10m</th>
+                                    <th>15m</th>
+                                    <th>30m</th>
+                                    <th>1h</th>
+                                    <th>2h</th>
+                                    <th>3h</th>
+                                    <th>4h</th>
+                                    <th>1d</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                for (const stock of stocks) {
+                    html += `
+                        <tr>
+                            <td class="ticker">${stock.ticker}</td>
+                            <td class="price">${stock.price || '-'}</td>
+                            <td><span class="signal ${getSignalClass(stock['10m'])}">${stock['10m'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['15m'])}">${stock['15m'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['30m'])}">${stock['30m'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['1h'])}">${stock['1h'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['2h'])}">${stock['2h'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['3h'])}">${stock['3h'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['4h'])}">${stock['4h'] || '-'}</span></td>
+                            <td><span class="signal ${getSignalClass(stock['1d'])}">${stock['1d'] || '-'}</span></td>
+                        </tr>
+                    `;
+                }
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            
+            resultsDiv.innerHTML = html;
+            document.getElementById('timestamp').textContent = `✅ 最後更新: ${data.timestamp} | Polygon.io 即時數據`;
+        }
+        
+        async function startScan() {
+            const btn = document.getElementById('scanBtn');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> 掃描中...';
+            status.className = 'status loading';
+            status.textContent = '正在掃描所有板塊...';
+            
+            try {
+                const response = await fetch('/api/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ api_key: API_KEY })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('API 請求失敗');
+                }
+                
+                const data = await response.json();
+                renderResults(data);
+                
+                status.className = 'status success';
+                status.textContent = '✅ 掃描完成';
+                
+                // 設置自動刷新
+                setupAutoRefresh();
+                
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = '❌ 錯誤: ' + error.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 開始掃描';
+            }
+        }
+        
+        function setupAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+            const interval = document.getElementById('refreshInterval');
+            
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+            
+            if (checkbox.checked) {
+                const seconds = parseInt(interval.value) || 30;
+                autoRefreshTimer = setInterval(startScan, seconds * 1000);
+            }
+        }
+        
+        document.getElementById('autoRefresh').addEventListener('change', setupAutoRefresh);
+        document.getElementById('refreshInterval').addEventListener('change', setupAutoRefresh);
+    </script>
+</body>
+</html>
+
